@@ -35,7 +35,7 @@ endif()
 include(AddCXXCompilerFlag)
 add_cxx_compiler_flag(-Wall)
 add_cxx_compiler_flag(-Wshadow)
-add_cxx_compiler_flag(-Werror)
+#add_cxx_compiler_flag(-Werror)
 add_cxx_compiler_flag(-pedantic-errors)
 #add_cxx_compiler_flag(-Wzero-as-null-pointer-constant)
 
