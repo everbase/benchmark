@@ -24,7 +24,7 @@ function(cxx_feature_check FILE)
   message("-- Performing Test ${FEATURE}")
   try_run(RUN_${FEATURE} COMPILE_${FEATURE}
           ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${FILE}.cpp)
-  if(RUN_${FEATURE} EQUAL 0)
+  if(RUN_${FEATURE} EQUAL 0 OR (COMPILE_${FEATURE} AND CROSS_COMPILING))
     message("-- Performing Test ${FEATURE} -- success")
     set(HAVE_${VAR} 1 PARENT_SCOPE)
     add_definitions(-DHAVE_${VAR})
