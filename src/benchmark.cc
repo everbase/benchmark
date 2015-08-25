@@ -15,11 +15,12 @@
 #include "benchmark/benchmark.h"
 #include "internal_macros.h"
 
+// TODO: can't this be removed for linux?
+#ifndef _WIN32
 #include <sys/time.h>
-#ifndef OS_WINDOWS
 #include <sys/resource.h>
-#endif
 #include <unistd.h>
+#endif
 
 #include <cstdlib>
 #include <cstring>

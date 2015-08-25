@@ -14,7 +14,9 @@
 
 #include "walltime.h"
 
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 
 #include <cstdio>
 #include <cstdint>
@@ -51,7 +53,7 @@ struct ChooseSteadyClock<false> {
 
 struct ChooseClockType {
 #if defined(HAVE_STEADY_CLOCK)
-  typedef typename ChooseSteadyClock<>::type type;
+  typedef ChooseSteadyClock<>::type type;
 #else
   typedef std::chrono::high_resolution_clock type;
 #endif
@@ -91,9 +93,8 @@ private:
   }
 
   WallTime Slow() const {
-    struct timeval tv;
-    gettimeofday(&tv, nullptr);
-    return tv.tv_sec + tv.tv_usec * 1e-6;
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
   }
 
 private:
@@ -217,9 +218,17 @@ std::string DateTimeString(bool local) {
   std::tm timeinfo;
   std::memset(&timeinfo, 0, sizeof(std::tm));
   if (local) {
-    ::localtime_r(&now, &timeinfo);
+    #ifdef _WIN32
+      ::localtime_s(&timeinfo, &now);
+    #else
+      ::localtime_r(&now, &timeinfo);
+    #endif
   } else {
-    ::gmtime_r(&now, &timeinfo);
+    #ifdef _WIN32
+      ::gmtime_s(&timeinfo, &now);
+    #else
+      ::gmtime_r(&now, &timeinfo);
+    #endif
   }
   std::size_t written = std::strftime(storage, sizeof(storage), "%F %T", &timeinfo);
   CHECK(written < arraysize(storage));
