@@ -26,7 +26,7 @@
 #include "benchmark/macros.h"
 #include "internal_macros.h"
 
-#if defined(OS_MACOSX)
+#if defined(BENCHMARK_OS_MACOSX)
 #include <mach/mach_time.h>
 #endif
 // For MSVC, we want to use '_asm rdtsc' when possible (since it works
@@ -41,7 +41,7 @@ extern "C" uint64_t __rdtsc();
 #pragma intrinsic(__rdtsc)
 #endif
 
-#ifndef _WIN32
+#ifndef BENCHMARK_OS_WINDOWS
 #include <sys/time.h>
 #endif
 
@@ -54,7 +54,7 @@ namespace benchmark {
 namespace cycleclock {
 // This should return the number of cycles since power-on.  Thread-safe.
 inline BENCHMARK_ALWAYS_INLINE int64_t Now() {
-#if defined(OS_MACOSX)
+#if defined(BENCHMARK_OS_MACOSX)
   // this goes at the top because we need ALL Macs, regardless of
   // architecture, to return the number of "mach time units" that
   // have passed since startup.  See sysinfo.cc where
@@ -99,17 +99,25 @@ inline BENCHMARK_ALWAYS_INLINE int64_t Now() {
   _asm rdtsc
 #elif defined(COMPILER_MSVC)
   return __rdtsc();
+#elif defined(__aarch64__)
+  // System timer of ARMv8 runs at a different frequency than the CPU's.
+  // The frequency is fixed, typically in the range 1-50MHz.  It can be
+  // read at CNTFRQ special register.  We assume the OS has set up
+  // the virtual timer properly.
+  int64_t virtual_timer_value;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(virtual_timer_value));
+  return virtual_timer_value;
 #elif defined(__ARM_ARCH)
 #if (__ARM_ARCH >= 6)  // V6 is the earliest arch that has a standard cyclecount
   uint32_t pmccntr;
   uint32_t pmuseren;
   uint32_t pmcntenset;
   // Read the user mode perf monitor counter access permissions.
-  asm("mrc p15, 0, %0, c9, c14, 0" : "=r"(pmuseren));
+  asm volatile("mrc p15, 0, %0, c9, c14, 0" : "=r"(pmuseren));
   if (pmuseren & 1) {  // Allows reading perfmon counters for user mode code.
-    asm("mrc p15, 0, %0, c9, c12, 1" : "=r"(pmcntenset));
+    asm volatile("mrc p15, 0, %0, c9, c12, 1" : "=r"(pmcntenset));
     if (pmcntenset & 0x80000000ul) {  // Is it counting?
-      asm("mrc p15, 0, %0, c9, c13, 0" : "=r"(pmccntr));
+      asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(pmccntr));
       // The counter is set up to count every 64th cycle
       return static_cast<int64_t>(pmccntr) * 64;  // Should optimize to << 6
     }
