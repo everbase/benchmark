@@ -71,18 +71,23 @@ def generate_difference_report(json1, json2, use_color=True):
     Calculate and report the difference between each test of two benchmarks
     runs specified as 'json1' and 'json2'.
     """
-    first_col_width = find_longest_name(json1['benchmarks']) + 5
+    first_col_width = find_longest_name(json1['benchmarks'])
     def find_test(name):
         for b in json2['benchmarks']:
             if b['name'] == name:
                 return b
         return None
-    first_line = "{:<{}s}     Time           CPU           Old           New".format(
+    first_line = "{:<{}s}            Time             CPU      Time Old      Time New       CPU Old       CPU New".format(
         'Benchmark', first_col_width)
     output_strs = [first_line, '-' * len(first_line)]
-    for bn in json1['benchmarks']:
+
+    gen = (bn for bn in json1['benchmarks'] if 'real_time' in bn and 'cpu_time' in bn)
+    for bn in gen:
         other_bench = find_test(bn['name'])
         if not other_bench:
+            continue
+
+        if bn['time_unit'] != other_bench['time_unit']:
             continue
 
         def get_color(res):
@@ -92,12 +97,13 @@ def generate_difference_report(json1, json2, use_color=True):
                 return BC_WHITE
             else:
                 return BC_CYAN
-        fmt_str = "{}{:<{}s}{endc}    {}{:+.2f}{endc}         {}{:+.2f}{endc}         {:4d}         {:4d}"
+        fmt_str = "{}{:<{}s}{endc}{}{:+16.4f}{endc}{}{:+16.4f}{endc}{:14.0f}{:14.0f}{endc}{:14.0f}{:14.0f}"
         tres = calculate_change(bn['real_time'], other_bench['real_time'])
         cpures = calculate_change(bn['cpu_time'], other_bench['cpu_time'])
         output_strs += [color_format(use_color, fmt_str,
             BC_HEADER, bn['name'], first_col_width,
             get_color(tres), tres, get_color(cpures), cpures,
+            bn['real_time'], other_bench['real_time'],
             bn['cpu_time'], other_bench['cpu_time'],
             endc=BC_ENDC)]
     return output_strs
@@ -121,19 +127,27 @@ class TestReportDifference(unittest.TestCase):
 
     def test_basic(self):
         expect_lines = [
-            ['BM_SameTimes', '+0.00', '+0.00'],
-            ['BM_2xFaster', '-0.50', '-0.50'],
-            ['BM_2xSlower', '+1.00', '+1.00'],
-            ['BM_10PercentFaster', '-0.10', '-0.10'],
-            ['BM_10PercentSlower', '+0.10', '+0.10']
+            ['BM_SameTimes', '+0.0000', '+0.0000', '10', '10', '10', '10'],
+            ['BM_2xFaster', '-0.5000', '-0.5000', '50', '25', '50', '25'],
+            ['BM_2xSlower', '+1.0000', '+1.0000', '50', '100', '50', '100'],
+            ['BM_1PercentFaster', '-0.0100', '-0.0100', '100', '99', '100', '99'],
+            ['BM_1PercentSlower', '+0.0100', '+0.0100', '100', '101', '100', '101'],
+            ['BM_10PercentFaster', '-0.1000', '-0.1000', '100', '90', '100', '90'],
+            ['BM_10PercentSlower', '+0.1000', '+0.1000', '100', '110', '100', '110'],
+            ['BM_100xSlower', '+99.0000', '+99.0000', '100', '10000', '100', '10000'],
+            ['BM_100xFaster', '-0.9900', '-0.9900', '10000', '100', '10000', '100'],
+            ['BM_10PercentCPUToTime', '+0.1000', '-0.1000', '100', '110', '100', '90'],
+            ['BM_ThirdFaster', '-0.3333', '-0.3334', '100', '67', '100', '67'],
+            ['BM_BadTimeUnit', '-0.9000', '+0.2000', '0', '0', '0', '1'],
         ]
         json1, json2 = self.load_results()
-        output_lines = generate_difference_report(json1, json2, use_color=False)
-        print output_lines
+        output_lines_with_header = generate_difference_report(json1, json2, use_color=False)
+        output_lines = output_lines_with_header[2:]
+        print("\n".join(output_lines_with_header))
         self.assertEqual(len(output_lines), len(expect_lines))
-        for i in xrange(0, len(output_lines)):
+        for i in range(0, len(output_lines)):
             parts = [x for x in output_lines[i].split(' ') if x]
-            self.assertEqual(len(parts), 3)
+            self.assertEqual(len(parts), 7)
             self.assertEqual(parts, expect_lines[i])
 
 

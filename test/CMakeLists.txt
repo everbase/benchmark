@@ -1,6 +1,26 @@
 # Enable the tests
 
 find_package(Threads REQUIRED)
+include(CheckCXXCompilerFlag)
+
+# NOTE: Some tests use `<cassert>` to perform the test. Therefore we must
+# strip -DNDEBUG from the default CMake flags in DEBUG mode.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
+  add_definitions( -UNDEBUG )
+  add_definitions(-DTEST_BENCHMARK_LIBRARY_HAS_NO_ASSERTIONS)
+  # Also remove /D NDEBUG to avoid MSVC warnings about conflicting defines.
+  foreach (flags_var_to_scrub
+      CMAKE_CXX_FLAGS_RELEASE
+      CMAKE_CXX_FLAGS_RELWITHDEBINFO
+      CMAKE_CXX_FLAGS_MINSIZEREL
+      CMAKE_C_FLAGS_RELEASE
+      CMAKE_C_FLAGS_RELWITHDEBINFO
+      CMAKE_C_FLAGS_MINSIZEREL)
+    string (REGEX REPLACE "(^| )[/-]D *NDEBUG($| )" " "
+      "${flags_var_to_scrub}" "${${flags_var_to_scrub}}")
+  endforeach()
+endif()
 
 # NOTE: These flags must be added after find_package(Threads REQUIRED) otherwise
 # they will break the configuration check.
@@ -8,7 +28,7 @@ if (DEFINED BENCHMARK_CXX_LINKER_FLAGS)
   list(APPEND CMAKE_EXE_LINKER_FLAGS ${BENCHMARK_CXX_LINKER_FLAGS})
 endif()
 
-add_library(output_test_helper STATIC output_test_helper.cc)
+add_library(output_test_helper STATIC output_test_helper.cc output_test.h)
 
 macro(compile_benchmark_test name)
   add_executable(${name} "${name}.cc")
@@ -56,6 +76,11 @@ compile_benchmark_test(skip_with_error_test)
 add_test(skip_with_error_test skip_with_error_test --benchmark_min_time=0.01)
 
 compile_benchmark_test(donotoptimize_test)
+# Some of the issues with DoNotOptimize only occur when optimization is enabled
+check_cxx_compiler_flag(-O3 BENCHMARK_HAS_O3_FLAG)
+if (BENCHMARK_HAS_O3_FLAG)
+  set_target_properties(donotoptimize_test PROPERTIES COMPILE_FLAGS "-O3")
+endif()
 add_test(donotoptimize_test donotoptimize_test --benchmark_min_time=0.01)
 
 compile_benchmark_test(fixture_test)
@@ -73,15 +98,31 @@ add_test(multiple_ranges_test multiple_ranges_test --benchmark_min_time=0.01)
 compile_output_test(reporter_output_test)
 add_test(reporter_output_test reporter_output_test --benchmark_min_time=0.01)
 
+compile_output_test(templated_fixture_test)
+add_test(templated_fixture_test templated_fixture_test --benchmark_min_time=0.01)
+
+compile_output_test(user_counters_test)
+add_test(user_counters_test user_counters_test --benchmark_min_time=0.01)
+
+compile_output_test(user_counters_tabular_test)
+add_test(user_counters_tabular_test user_counters_tabular_test --benchmark_counters_tabular=true --benchmark_min_time=0.01)
+
 check_cxx_compiler_flag(-std=c++03 BENCHMARK_HAS_CXX03_FLAG)
 if (BENCHMARK_HAS_CXX03_FLAG)
-  set(CXX03_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-std=c++11" "-std=c++03" CXX03_FLAGS "${CXX03_FLAGS}")
-  string(REPLACE "-std=c++0x" "-std=c++03" CXX03_FLAGS "${CXX03_FLAGS}")
-
   compile_benchmark_test(cxx03_test)
   set_target_properties(cxx03_test
-      PROPERTIES COMPILE_FLAGS "${CXX03_FLAGS}")
+      PROPERTIES
+      COMPILE_FLAGS "-std=c++03")
+  # libstdc++ provides different definitions within <map> between dialects. When
+  # LTO is enabled and -Werror is specified GCC diagnoses this ODR violation
+  # causing the test to fail to compile. To prevent this we explicitly disable
+  # the warning.
+  check_cxx_compiler_flag(-Wno-odr BENCHMARK_HAS_WNO_ODR)
+  if (BENCHMARK_ENABLE_LTO AND BENCHMARK_HAS_WNO_ODR)
+    set_target_properties(cxx03_test
+        PROPERTIES
+        LINK_FLAGS "-Wno-odr")
+  endif()
   add_test(cxx03 cxx03_test --benchmark_min_time=0.01)
 endif()
 
