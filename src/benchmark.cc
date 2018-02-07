@@ -37,13 +37,13 @@
 #include "colorprint.h"
 #include "commandlineflags.h"
 #include "complexity.h"
-#include "statistics.h"
 #include "counter.h"
+#include "internal_macros.h"
 #include "log.h"
 #include "mutex.h"
 #include "re.h"
+#include "statistics.h"
 #include "string_util.h"
-#include "sysinfo.h"
 #include "timers.h"
 
 DEFINE_bool(benchmark_list_tests, false,
@@ -175,7 +175,9 @@ class ThreadTimer {
     CHECK(running_);
     running_ = false;
     real_time_used_ += ChronoClockNow() - start_real_time_;
-    cpu_time_used_ += ThreadCPUUsage() - start_cpu_time_;
+    // Floating point error can result in the subtraction producing a negative
+    // time. Guard against that.
+    cpu_time_used_ += std::max<double>(ThreadCPUUsage() - start_cpu_time_, 0);
   }
 
   // Called by each thread
@@ -491,10 +493,6 @@ void RunBenchmarks(const std::vector<Benchmark::Instance>& benchmarks,
 
   // Print header here
   BenchmarkReporter::Context context;
-  context.num_cpus = NumCPUs();
-  context.mhz_per_cpu = CyclesPerSecond() / 1000000.0;
-
-  context.cpu_scaling_enabled = CpuScalingEnabled();
   context.name_field_width = name_field_width;
 
   // Keep track of runing times of all instances of current benchmark

@@ -44,3 +44,10 @@ rules.ninja
 # out-of-source build top-level folders.
 build/
 _build/
+
+# in-source dependencies
+/googletest/
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+CMakeSettings.json

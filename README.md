@@ -2,6 +2,7 @@
 [![Build Status](https://travis-ci.org/google/benchmark.svg?branch=master)](https://travis-ci.org/google/benchmark)
 [![Build status](https://ci.appveyor.com/api/projects/status/u0qsyp7t1tk7cpxs/branch/master?svg=true)](https://ci.appveyor.com/project/google/benchmark/branch/master)
 [![Coverage Status](https://coveralls.io/repos/google/benchmark/badge.svg)](https://coveralls.io/r/google/benchmark)
+[![slackin](https://slackin-iqtfqnpzxd.now.sh/badge.svg)](https://slackin-iqtfqnpzxd.now.sh/)
 
 A library to support the benchmarking of functions, similar to unit-tests.
 
@@ -12,6 +13,79 @@ IRC channel: https://freenode.net #googlebenchmark
 [Known issues and common problems](#known-issues)
 
 [Additional Tooling Documentation](docs/tools.md)
+
+
+## Building
+
+The basic steps for configuring and building the library look like this:
+
+```bash
+$ git clone https://github.com/google/benchmark.git
+# Benchmark requires GTest as a dependency. Add the source tree as a subdirectory.
+$ git clone https://github.com/google/googletest.git benchmark/googletest
+$ mkdir build && cd build
+$ cmake -G <generator> [options] ../benchmark
+# Assuming a makefile generator was used
+$ make
+```
+
+Note that Google Benchmark requires GTest to build and run the tests. This
+dependency can be provided three ways:
+
+* Checkout the GTest sources into `benchmark/googletest`.
+* Otherwise, if `-DBENCHMARK_DOWNLOAD_DEPENDENCIES=ON` is specified during
+  configuration, the library will automatically download and build any required
+  dependencies.
+* Otherwise, if nothing is done, CMake will use `find_package(GTest REQUIRED)`
+  to resolve the required GTest dependency.
+
+If you do not wish to build and run the tests, add `-DBENCHMARK_ENABLE_GTEST_TESTS=OFF`
+to `CMAKE_ARGS`.
+
+
+## Installation Guide
+
+For Ubuntu and Debian Based System
+
+First make sure you have git and cmake installed (If not please install it)
+
+```
+sudo apt-get install git
+sudo apt-get install cmake
+```
+
+Now, let's clone the repository and build it
+
+```
+git clone https://github.com/google/benchmark.git
+cd benchmark
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=RELEASE
+make
+```
+
+We need to install the library globally now
+
+```
+sudo make install
+```
+
+Now you have google/benchmark installed in your machine 
+Note: Don't forget to link to pthread library while building
+
+## Stable and Experimental Library Versions
+
+The main branch contains the latest stable version of the benchmarking library;
+the API of which can be considered largely stable, with source breaking changes
+being made only upon the release of a new major version.
+
+Newer, experimental, features are implemented and tested on the
+[`v2` branch](https://github.com/google/benchmark/tree/v2). Users who wish
+to use, test, and provide feedback on the new features are encouraged to try
+this branch. However, this branch provides no stability guarantees and reserves
+the right to change and break the API at any time.
+
 
 ## Example usage
 ### Basic usage
@@ -39,6 +113,8 @@ BENCHMARK_MAIN();
 ```
 
 Don't forget to inform your linker to add benchmark library e.g. through `-lbenchmark` compilation flag.
+
+The benchmark library will reporting the timing for the code within the `for(...)` loop.
 
 ### Passing arguments
 Sometimes a family of benchmarks can be implemented with just one routine that
@@ -813,6 +889,9 @@ To enable link-time optimisation, use
 cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_LTO=true
 ```
 
+If you are using gcc, you might need to set `GCC_AR` and `GCC_RANLIB` cmake cache variables, if autodetection fails.
+If you are using clang, you may need to set `LLVMAR_EXECUTABLE`, `LLVMNM_EXECUTABLE` and `LLVMRANLIB_EXECUTABLE` cmake cache variables.
+
 ## Linking against the library
 When using gcc, it is necessary to link against pthread to avoid runtime exceptions.
 This is due to how gcc implements std::thread.
@@ -834,6 +913,18 @@ Anything older *may* work.
 
 Note: Using the library and its headers in C++03 is supported. C++11 is only
 required to build the library.
+
+## Disable CPU frequency scaling
+If you see this error:
+```
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+```
+you might want to disable the CPU frequency scaling while running the benchmark:
+```bash
+sudo cpupower frequency-set --governor performance
+./mybench
+sudo cpupower frequency-set --governor powersave
+```
 
 # Known Issues
 

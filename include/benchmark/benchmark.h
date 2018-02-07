@@ -433,7 +433,7 @@ class State {
     if (BENCHMARK_BUILTIN_EXPECT(!started_, false)) {
       StartKeepRunning();
     }
-    bool const res = --total_iterations_;
+    bool const res = (--total_iterations_ != 0);
     if (BENCHMARK_BUILTIN_EXPECT(!res, false)) {
       FinishKeepRunning();
     }
@@ -642,10 +642,10 @@ struct State::StateIterator {
   State* const parent_;
 };
 
-BENCHMARK_ALWAYS_INLINE inline State::StateIterator State::begin() {
+inline BENCHMARK_ALWAYS_INLINE State::StateIterator State::begin() {
   return StateIterator(this);
 }
-BENCHMARK_ALWAYS_INLINE inline State::StateIterator State::end() {
+inline BENCHMARK_ALWAYS_INLINE State::StateIterator State::end() {
   StartKeepRunning();
   return StateIterator();
 }
@@ -1146,13 +1146,34 @@ class Fixture : public internal::Benchmark {
     ::benchmark::Initialize(&argc, argv);  \
     if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1; \
     ::benchmark::RunSpecifiedBenchmarks(); \
-  }
+  }                                        \
+  int main(int, char**)
 
 
 // ------------------------------------------------------
 // Benchmark Reporters
 
 namespace benchmark {
+
+struct CPUInfo {
+  struct CacheInfo {
+    std::string type;
+    int level;
+    int size;
+    int num_sharing;
+  };
+
+  int num_cpus;
+  double cycles_per_second;
+  std::vector<CacheInfo> caches;
+  bool scaling_enabled;
+
+  static const CPUInfo& Get();
+
+ private:
+  CPUInfo();
+  BENCHMARK_DISALLOW_COPY_AND_ASSIGN(CPUInfo);
+};
 
 // Interface for custom benchmark result printers.
 // By default, benchmark reports are printed to stdout. However an application
@@ -1162,12 +1183,11 @@ namespace benchmark {
 class BenchmarkReporter {
  public:
   struct Context {
-    int num_cpus;
-    double mhz_per_cpu;
-    bool cpu_scaling_enabled;
-
+    CPUInfo const& cpu_info;
     // The number of chars in the longest benchmark name.
     size_t name_field_width;
+
+    Context();
   };
 
   struct Run {

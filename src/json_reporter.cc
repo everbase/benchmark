@@ -77,12 +77,36 @@ bool JSONReporter::ReportContext(const Context& context) {
   std::string walltime_value = LocalDateTimeString();
   out << indent << FormatKV("date", walltime_value) << ",\n";
 
-  out << indent << FormatKV("num_cpus", static_cast<int64_t>(context.num_cpus))
+  CPUInfo const& info = context.cpu_info;
+  out << indent << FormatKV("num_cpus", static_cast<int64_t>(info.num_cpus))
       << ",\n";
-  out << indent << FormatKV("mhz_per_cpu", RoundDouble(context.mhz_per_cpu))
+  out << indent
+      << FormatKV("mhz_per_cpu",
+                  RoundDouble(info.cycles_per_second / 1000000.0))
       << ",\n";
-  out << indent << FormatKV("cpu_scaling_enabled", context.cpu_scaling_enabled)
+  out << indent << FormatKV("cpu_scaling_enabled", info.scaling_enabled)
       << ",\n";
+
+  out << indent << "\"caches\": [\n";
+  indent = std::string(6, ' ');
+  std::string cache_indent(8, ' ');
+  for (size_t i = 0; i < info.caches.size(); ++i) {
+    auto& CI = info.caches[i];
+    out << indent << "{\n";
+    out << cache_indent << FormatKV("type", CI.type) << ",\n";
+    out << cache_indent << FormatKV("level", static_cast<int64_t>(CI.level))
+        << ",\n";
+    out << cache_indent
+        << FormatKV("size", static_cast<int64_t>(CI.size) * 1000u) << ",\n";
+    out << cache_indent
+        << FormatKV("num_sharing", static_cast<int64_t>(CI.num_sharing))
+        << "\n";
+    out << indent << "}";
+    if (i != info.caches.size() - 1) out << ",";
+    out << "\n";
+  }
+  indent = std::string(4, ' ');
+  out << indent << "],\n";
 
 #if defined(NDEBUG)
   const char build_type[] = "release";
